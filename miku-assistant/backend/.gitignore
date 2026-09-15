@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+data/vector_store/*.json
+!data/vector_store/.gitkeep
