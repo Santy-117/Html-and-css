@@ -218,21 +218,41 @@ function guardarSaldoInicial(valor) {
 /**
  * Devuelve el logo como data URL (base64). Se lee desde Drive con los permisos
  * de quien implementa la app, así que el archivo no necesita ser público.
+ * Respuesta: { id, url } si todo bien, o { id, error } si algo falló.
  */
 function obtenerLogo() {
-  if (!LOGO_ID) return '';
+  if (!LOGO_ID) return { id: '', error: 'LOGO_ID está vacío en Code.gs.' };
   const cache = CacheService.getScriptCache();
   const enCache = cache.get('logo_' + LOGO_ID);
-  if (enCache) return enCache;
+  if (enCache) return { id: LOGO_ID, url: enCache };
   try {
-    const blob = DriveApp.getFileById(LOGO_ID).getBlob();
+    const archivo = DriveApp.getFileById(LOGO_ID);
+    let blob = archivo.getBlob();
+    if (!/^image\//.test(blob.getContentType())) {
+      // Si no es imagen (p. ej. PDF), intenta con la miniatura que genera Drive.
+      blob = archivo.getThumbnail();
+      if (!blob) throw new Error('El archivo "' + archivo.getName() + '" no es una imagen (' + archivo.getMimeType() + ').');
+    }
     const url = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
     if (url.length < 100000) cache.put('logo_' + LOGO_ID, url, 21600); // máx. 100 KB en caché, 6 h
-    return url;
+    return { id: LOGO_ID, url: url };
   } catch (e) {
     console.warn('No se pudo cargar el logo: ' + e);
-    return '';
+    return { id: LOGO_ID, error: String(e && e.message || e) };
   }
+}
+
+/**
+ * Ejecuta esta función desde el editor (botón ▶ Ejecutar) para:
+ *  1) autorizar el permiso de Google Drive, y
+ *  2) ver en el "Registro de ejecución" si el logo se puede leer.
+ */
+function probarLogo() {
+  CacheService.getScriptCache().remove('logo_' + LOGO_ID);
+  const archivo = DriveApp.getFileById(LOGO_ID);
+  console.log('Archivo: ' + archivo.getName() + ' | Tipo: ' + archivo.getMimeType() + ' | Tamaño: ' + archivo.getSize() + ' bytes');
+  const r = obtenerLogo();
+  console.log(r.url ? 'OK: logo listo (' + r.url.length + ' caracteres en base64).' : 'ERROR: ' + r.error);
 }
 
 /** Devuelve la información de las 3 hojas en un solo llamado. */

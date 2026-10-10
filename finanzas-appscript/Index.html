@@ -606,17 +606,27 @@
       }
     });
 
+    function mostrarLogo(src) {
+      $('logo').src = src;
+      $('logo').style.display = 'block';
+      $('emoji').style.display = 'none';
+      const icono = document.createElement('link');
+      icono.rel = 'icon';
+      icono.href = src;
+      document.head.appendChild(icono);
+    }
+
     function cargarLogo() {
-      servidor('obtenerLogo').then(url => {
-        if (!url) return;
-        $('logo').src = url;
-        $('logo').style.display = 'block';
-        $('emoji').style.display = 'none';
-        const icono = document.createElement('link');
-        icono.rel = 'icon';
-        icono.href = url;
-        document.head.appendChild(icono);
-      }).catch(() => {});
+      servidor('obtenerLogo').then(r => {
+        if (r && r.url) return mostrarLogo(r.url);
+        if (!r || !r.id) return;
+        // Plan B: enlace directo de Drive (funciona si el archivo está compartido
+        // como "Cualquier persona con el enlace").
+        const img = new Image();
+        img.onload = () => mostrarLogo(img.src);
+        img.onerror = () => toast('No se pudo cargar el logo: ' + (r.error || 'revisa LOGO_ID'), true);
+        img.src = 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(r.id);
+      }).catch(e => toast('No se pudo cargar el logo: ' + e.message, true));
     }
 
     limpiarForm();
