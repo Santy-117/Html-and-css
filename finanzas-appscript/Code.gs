@@ -13,6 +13,9 @@
 // (la parte de la URL entre /d/ y /edit).
 const SPREADSHEET_ID = '';
 
+// ID del logo en Google Drive (la parte del link entre /d/ y /view).
+const LOGO_ID = '1IAKwSst4Xa7TVyRdv-GbXbeak5Czatbn';
+
 const HOJA_MOV = 'Movimientos';
 const HOJA_RESUMEN = 'Resumen Mensual';
 const HOJA_ACUM = 'Acumulado';
@@ -210,6 +213,26 @@ function guardarSaldoInicial(valor) {
   hoja_(HOJA_ACUM).getRange('D3').setValue(n);
   SpreadsheetApp.flush();
   return { ok: true };
+}
+
+/**
+ * Devuelve el logo como data URL (base64). Se lee desde Drive con los permisos
+ * de quien implementa la app, así que el archivo no necesita ser público.
+ */
+function obtenerLogo() {
+  if (!LOGO_ID) return '';
+  const cache = CacheService.getScriptCache();
+  const enCache = cache.get('logo_' + LOGO_ID);
+  if (enCache) return enCache;
+  try {
+    const blob = DriveApp.getFileById(LOGO_ID).getBlob();
+    const url = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
+    if (url.length < 100000) cache.put('logo_' + LOGO_ID, url, 21600); // máx. 100 KB en caché, 6 h
+    return url;
+  } catch (e) {
+    console.warn('No se pudo cargar el logo: ' + e);
+    return '';
+  }
 }
 
 /** Devuelve la información de las 3 hojas en un solo llamado. */
