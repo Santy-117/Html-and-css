@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingresos vs Gastos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #2563eb;
+      --ingreso: #16a34a;
+      --gasto: #dc2626;
+      --ahorro: #7c3aed;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header a { color: #fff; font-size: 13px; }
+    nav {
+      display: flex;
+      gap: 4px;
+      padding: 0 16px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    nav button {
+      border: none;
+      background: none;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+    nav button.activo { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .seccion { display: none; }
+    .seccion.activa { display: block; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 16px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+    .kpi span { display: block; color: var(--muted); font-size: 12px; }
+    .kpi strong { font-size: 20px; }
+    .verde { color: var(--ingreso); }
+    .rojo { color: var(--gasto); }
+    .morado { color: var(--ahorro); }
+
+    form .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      background: #fff;
+    }
+    input:focus, select:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    .tipo-toggle { display: flex; gap: 8px; }
+    .tipo-toggle label {
+      flex: 1;
+      margin: 0;
+      text-align: center;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .tipo-toggle input { display: none; }
+    .tipo-toggle input[value="Ingreso"]:checked + span { color: var(--ingreso); font-weight: 600; }
+    .tipo-toggle input[value="Gasto"]:checked + span { color: var(--gasto); font-weight: 600; }
+    .tipo-toggle label:has(input:checked) { border-color: currentColor; background: #f9fafb; }
+    .acciones { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn.sec { background: #e5e7eb; color: var(--text); }
+    .btn:disabled { opacity: .6; cursor: wait; }
+    .btn-mini { border: none; background: none; cursor: pointer; font-size: 16px; padding: 2px 4px; }
+
+    .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .tabla-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { font-size: 12px; color: var(--muted); font-weight: 600; background: #f9fafb; position: sticky; top: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tfoot td { font-weight: 700; background: #f9fafb; }
+    tr.mes-actual td { background: #eff6ff; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.Ingreso { background: #dcfce7; color: var(--ingreso); }
+    .pill.Gasto { background: #fee2e2; color: var(--gasto); }
+    .graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .grafico { position: relative; height: 300px; }
+    .vacio { color: var(--muted); text-align: center; padding: 24px; }
+
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: #fff;
+      background: #111827;
+      display: none;
+      z-index: 10;
+      max-width: 90vw;
+    }
+    #toast.error { background: var(--gasto); }
+    #cargando {
+      position: fixed; inset: 0; background: rgba(255,255,255,.7);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; z-index: 9;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>💰 Ingresos vs Gastos</h1>
+    <a id="linkHoja" href="#" target="_blank" rel="noopener">Abrir Google Sheet ↗</a>
+  </header>
+
+  <nav>
+    <button class="activo" data-tab="registro">Registrar</button>
+    <button data-tab="movimientos">Movimientos</button>
+    <button data-tab="resumen">Resumen Mensual</button>
+    <button data-tab="acumulado">Acumulado</button>
+  </nav>
+
+  <main>
+    <!-- KPIs generales -->
+    <div class="kpis">
+      <div class="kpi"><span>Ingresos del año</span><strong class="verde" id="kIngresos">—</strong></div>
+      <div class="kpi"><span>Gastos del año</span><strong class="rojo" id="kGastos">—</strong></div>
+      <div class="kpi"><span>Ahorro del año</span><strong class="morado" id="kAhorro">—</strong></div>
+      <div class="kpi"><span>Saldo acumulado</span><strong id="kSaldo">—</strong></div>
+    </div>
+
+    <!-- ========== REGISTRAR ========== -->
+    <section class="seccion activa" id="registro">
+      <div class="card">
+        <h2 id="tituloForm">Nuevo movimiento</h2>
+        <form id="form" autocomplete="off">
+          <input type="hidden" id="fila">
+          <div class="grid">
+            <div>
+              <label>Tipo</label>
+              <div class="tipo-toggle">
+                <label><input type="radio" name="tipo" value="Ingreso"><span>⬆ Ingreso</span></label>
+                <label><input type="radio" name="tipo" value="Gasto" checked><span>⬇ Gasto</span></label>
+              </div>
+            </div>
+            <div>
+              <label for="fecha">Fecha</label>
+              <input type="date" id="fecha" required>
+            </div>
+            <div>
+              <label for="categoria">Categoría</label>
+              <select id="categoria" required></select>
+            </div>
+            <div>
+              <label for="monto">Monto</label>
+              <input type="number" id="monto" min="1" step="any" inputmode="decimal" placeholder="0" required>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label for="descripcion">Descripción</label>
+              <input type="text" id="descripcion" placeholder="Ej: Pago de nómina, mercado, energía...">
+            </div>
+          </div>
+          <div class="acciones">
+            <button class="btn" type="submit" id="btnGuardar">Guardar</button>
+            <button class="btn sec" type="button" id="btnCancelar" style="display:none">Cancelar edición</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Últimos movimientos</h2>
+        <div class="tabla-wrap"><table id="tablaUltimos"></table></div>
+      </div>
+    </section>
+
+    <!-- ========== MOVIMIENTOS ========== -->
+    <section class="seccion" id="movimientos">
+      <div class="card">
+        <h2>Movimientos</h2>
+        <div class="filtros">
+          <select id="fMes"><option value="">Todos los meses</option></select>
+          <select id="fTipo">
+            <option value="">Ingresos y gastos</option>
+            <option>Ingreso</option>
+            <option>Gasto</option>
+          </select>
+          <select id="fCategoria"><option value="">Todas las categorías</option></select>
+          <input type="search" id="fTexto" placeholder="Buscar descripción...">
+        </div>
+        <div class="tabla-wrap"><table id="tablaMov"></table></div>
+      </div>
+    </section>
+
+    <!-- ========== RESUMEN MENSUAL ========== -->
+    <section class="seccion" id="resumen">
+      <div class="card">
+        <h2>Resumen Mensual — Ingresos vs Gastos</h2>
+        <div class="tabla-wrap"><table id="tablaResumen"></table></div>
+      </div>
+      <div class="graficos">
+        <div class="card">
+          <h2>Ingresos vs Gastos por mes</h2>
+          <div class="grafico"><canvas id="gResumen"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Gastos por categoría <small id="lblCatMes" style="color:var(--muted);font-weight:400"></small></h2>
+          <select id="mesCategorias" style="margin-bottom:8px"></select>
+          <div class="grafico"><canvas id="gCategorias"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== ACUMULADO ========== -->
+    <section class="seccion" id="acumulado">
+      <div class="card">
+        <h2>Acumulado — ¿Cuánto dinero tengo en total?</h2>
+        <form id="formSaldo" class="acciones" style="margin:0 0 16px;align-items:flex-end">
+          <div style="flex:1;min-width:200px">
+            <label for="saldoInicial">Saldo inicial (antes de Enero)</label>
+            <input type="number" id="saldoInicial" step="any">
+          </div>
+          <button class="btn" type="submit">Actualizar saldo inicial</button>
+        </form>
+        <div class="tabla-wrap"><table id="tablaAcumulado"></table></div>
+      </div>
+      <div class="card">
+        <h2>Evolución del saldo acumulado</h2>
+        <div class="grafico"><canvas id="gAcumulado"></canvas></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <div id="cargando">Cargando datos…</div>
+
+  <script>
+    const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const MES_ACTUAL = new Date().getMonth() + 1;
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    const pct = new Intl.NumberFormat('es-CO', { style: 'percent', maximumFractionDigits: 1 });
+    const $ = id => document.getElementById(id);
+
+    let DATOS = null;
+    const graficos = {};
+
+    /* ---------- Utilidades ---------- */
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    function fechaBonita(iso) {
+      const [y, m, d] = String(iso).split('-');
+      return d ? `${d}/${m}/${y}` : iso;
+    }
+    function hoyISO() {
+      const d = new Date();
+      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    }
+    function toast(msg, error) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.className = error ? 'error' : '';
+      t.style.display = 'block';
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.style.display = 'none', 3500);
+    }
+    function cargando(si) { $('cargando').style.display = si ? 'flex' : 'none'; }
+
+    /** Promesa sobre google.script.run */
+    function servidor(fn, ...args) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))[fn](...args);
+      });
+    }
+
+    /* ---------- Pestañas ---------- */
+    document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('nav button').forEach(x => x.classList.toggle('activo', x === b));
+      document.querySelectorAll('.seccion').forEach(s => s.classList.toggle('activa', s.id === b.dataset.tab));
+      pintarGraficos(); // Chart.js necesita el canvas visible para medir bien
+    }));
+
+    /* ---------- Carga de datos ---------- */
+    async function cargar() {
+      cargando(true);
+      try {
+        DATOS = await servidor('obtenerDatos');
+        pintarTodo();
+      } catch (e) {
+        toast('Error cargando datos: ' + e.message, true);
+      } finally {
+        cargando(false);
+      }
+    }
+
+    function pintarTodo() {
+      $('linkHoja').href = DATOS.urlHoja;
+      llenarSelects();
+      pintarKPIs();
+      pintarUltimos();
+      pintarMovimientos();
+      pintarResumen();
+      pintarAcumulado();
+      pintarGraficos();
+    }
+
+    function llenarSelects() {
+      const cat = $('categoria');
+      const actual = cat.value;
+      cat.innerHTML = DATOS.categorias.map(c => `<option>${esc(c)}</option>`).join('');
+      if (actual) cat.value = actual;
+
+      const fCat = $('fCategoria');
+      const fCatVal = fCat.value;
+      const usadas = [...new Set(DATOS.categorias.concat(DATOS.movimientos.map(m => m.categoria)))];
+      fCat.innerHTML = '<option value="">Todas las categorías</option>' + usadas.map(c => `<option>${esc(c)}</option>`).join('');
+      fCat.value = fCatVal;
+
+      const fMes = $('fMes');
+      if (fMes.options.length === 1) {
+        fMes.innerHTML += MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+      }
+      const mc = $('mesCategorias');
+      if (!mc.options.length) {
+        mc.innerHTML = '<option value="">Todo el año</option>' + MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+        mc.value = String(MES_ACTUAL);
+      }
+    }
+
+    function pintarKPIs() {
+      $('kIngresos').textContent = fmt.format(DATOS.totalAnio.ingresos);
+      $('kGastos').textContent = fmt.format(DATOS.totalAnio.gastos);
+      $('kAhorro').textContent = fmt.format(DATOS.totalAnio.ahorro);
+      const k = $('kSaldo');
+      k.textContent = fmt.format(DATOS.saldoFinal);
+      k.className = DATOS.saldoFinal >= 0 ? 'verde' : 'rojo';
+    }
+
+    function filasMov(lista, conAcciones) {
+      if (!lista.length) return '<tr><td colspan="7" class="vacio">Sin movimientos</td></tr>';
+      return lista.map(m => `
+        <tr>
+          <td>${fechaBonita(m.fecha)}</td>
+          <td>${esc(m.categoria)}</td>
+          <td>${esc(m.descripcion)}</td>
+          <td><span class="pill ${esc(m.tipo)}">${esc(m.tipo)}</span></td>
+          <td class="num ${m.tipo === 'Ingreso' ? 'verde' : 'rojo'}">${fmt.format(m.monto)}</td>
+          ${conAcciones ? `<td class="num">
+            <button class="btn-mini" title="Editar" onclick="editar(${m.fila})">✏️</button>
+            <button class="btn-mini" title="Eliminar" onclick="eliminar(${m.fila})">🗑️</button>
+          </td>` : ''}
+        </tr>`).join('');
+    }
+    const CABECERA_MOV = acc => `<thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Tipo</th><th class="num">Monto</th>${acc ? '<th></th>' : ''}</tr></thead>`;
+
+    function ordenados() {
+      return DATOS.movimientos.slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || b.fila - a.fila);
+    }
+
+    function pintarUltimos() {
+      $('tablaUltimos').innerHTML = CABECERA_MOV(true) + '<tbody>' + filasMov(ordenados().slice(0, 8), true) + '</tbody>';
+    }
+
+    function pintarMovimientos() {
+      const mes = $('fMes').value, tipo = $('fTipo').value, cat = $('fCategoria').value;
+      const txt = $('fTexto').value.trim().toLowerCase();
+      const lista = ordenados().filter(m =>
+        (!mes || m.mes == mes) &&
+        (!tipo || m.tipo === tipo) &&
+        (!cat || m.categoria === cat) &&
+        (!txt || m.descripcion.toLowerCase().includes(txt) || m.categoria.toLowerCase().includes(txt))
+      );
+      const ing = lista.filter(m => m.tipo === 'Ingreso').reduce((s, m) => s + m.monto, 0);
+      const gas = lista.filter(m => m.tipo === 'Gasto').reduce((s, m) => s + m.monto, 0);
+      $('tablaMov').innerHTML = CABECERA_MOV(true) + '<tbody>' + filasMov(lista, true) + '</tbody>' +
+        `<tfoot>
+          <tr><td colspan="4">Ingresos (${lista.filter(m => m.tipo === 'Ingreso').length})</td><td class="num verde">${fmt.format(ing)}</td><td></td></tr>
+          <tr><td colspan="4">Gastos (${lista.filter(m => m.tipo === 'Gasto').length})</td><td class="num rojo">${fmt.format(gas)}</td><td></td></tr>
+          <tr><td colspan="4">Diferencia</td><td class="num ${ing - gas >= 0 ? 'verde' : 'rojo'}">${fmt.format(ing - gas)}</td><td></td></tr>
+        </tfoot>`;
+    }
+    ['fMes', 'fTipo', 'fCategoria', 'fTexto'].forEach(id => $(id).addEventListener('input', pintarMovimientos));
+
+    function pintarResumen() {
+      const filas = DATOS.resumen.map((r, i) => `
+        <tr class="${i + 1 === MES_ACTUAL ? 'mes-actual' : ''}">
+          <td>${esc(r.mes)}</td>
+          <td class="num verde">${fmt.format(r.ingresos)}</td>
+          <td class="num rojo">${fmt.format(r.gastos)}</td>
+          <td class="num ${r.ahorro >= 0 ? 'morado' : 'rojo'}">${fmt.format(r.ahorro)}</td>
+        </tr>`).join('');
+      const t = DATOS.totalAnio;
+      $('tablaResumen').innerHTML = `
+        <thead><tr><th>Mes</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Ahorro (Ingresos-Gastos)</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr><td>TOTAL AÑO</td><td class="num verde">${fmt.format(t.ingresos)}</td><td class="num rojo">${fmt.format(t.gastos)}</td><td class="num">${fmt.format(t.ahorro)}</td></tr></tfoot>`;
+    }
+
+    function pintarAcumulado() {
+      $('saldoInicial').value = DATOS.saldoInicial;
+      const filas = DATOS.acumulado.map((r, i) => `
+        <tr class="${i + 1 === MES_ACTUAL ? 'mes-actual' : ''}">
+          <td>${esc(r.mes)}</td>
+          <td class="num verde">${fmt.format(r.ingresos)}</td>
+          <td class="num rojo">${fmt.format(r.gastos)}</td>
+          <td class="num ${r.ahorro >= 0 ? 'morado' : 'rojo'}">${fmt.format(r.ahorro)}</td>
+          <td class="num"><strong>${fmt.format(r.acumulado)}</strong></td>
+          <td class="num">${r.variacion === null ? '—' : pct.format(r.variacion)}</td>
+        </tr>`).join('');
+      $('tablaAcumulado').innerHTML = `
+        <thead><tr><th>Mes</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Ahorro del mes</th><th class="num">Acumulado total</th><th class="num">Variación vs mes anterior</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr><td colspan="4">Saldo acumulado a fin de año</td><td class="num">${fmt.format(DATOS.saldoFinal)}</td><td></td></tr></tfoot>`;
+    }
+
+    /* ---------- Gráficos ---------- */
+    function grafico(id, config) {
+      const canvas = $(id);
+      if (!canvas.offsetParent) return; // pestaña oculta: se pinta al abrirla
+      if (graficos[id]) graficos[id].destroy();
+      graficos[id] = new Chart(canvas, config);
+    }
+
+    function pintarGraficos() {
+      if (!DATOS || typeof Chart === 'undefined') return;
+      const tick = { callback: v => fmt.format(v) };
+      const tooltip = { callbacks: { label: c => `${c.dataset.label || c.label}: ${fmt.format(c.parsed.y ?? c.parsed)}` } };
+
+      grafico('gResumen', {
+        type: 'bar',
+        data: {
+          labels: DATOS.resumen.map(r => r.mes.slice(0, 3)),
+          datasets: [
+            { label: 'Ingresos', data: DATOS.resumen.map(r => r.ingresos), backgroundColor: '#16a34a' },
+            { label: 'Gastos', data: DATOS.resumen.map(r => r.gastos), backgroundColor: '#dc2626' },
+            { label: 'Ahorro', data: DATOS.resumen.map(r => r.ahorro), type: 'line', borderColor: '#7c3aed', backgroundColor: '#7c3aed', tension: .3 }
+          ]
+        },
+        options: { maintainAspectRatio: false, scales: { y: { ticks: tick } }, plugins: { tooltip } }
+      });
+
+      const mes = $('mesCategorias').value;
+      const porCat = {};
+      DATOS.movimientos
+        .filter(m => m.tipo === 'Gasto' && (!mes || m.mes == mes))
+        .forEach(m => porCat[m.categoria] = (porCat[m.categoria] || 0) + m.monto);
+      const cats = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
+      const paleta = ['#2563eb','#dc2626','#f59e0b','#16a34a','#7c3aed','#0891b2','#db2777','#65a30d','#ea580c','#4b5563','#0d9488','#9333ea','#ca8a04','#be123c'];
+      grafico('gCategorias', {
+        type: 'doughnut',
+        data: {
+          labels: cats.map(c => c[0]),
+          datasets: [{ data: cats.map(c => c[1]), backgroundColor: cats.map((_, i) => paleta[i % paleta.length]) }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right' },
+            tooltip: { callbacks: { label: c => `${c.label}: ${fmt.format(c.parsed)}` } }
+          }
+        }
+      });
+      $('lblCatMes').textContent = cats.length ? '' : '(sin gastos en este periodo)';
+
+      grafico('gAcumulado', {
+        type: 'line',
+        data: {
+          labels: DATOS.acumulado.map(r => r.mes.slice(0, 3)),
+          datasets: [{ label: 'Acumulado', data: DATOS.acumulado.map(r => r.acumulado), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.15)', fill: true, tension: .3 }]
+        },
+        options: { maintainAspectRatio: false, scales: { y: { ticks: tick } }, plugins: { tooltip, legend: { display: false } } }
+      });
+    }
+    $('mesCategorias').addEventListener('change', pintarGraficos);
+
+    /* ---------- Formulario ---------- */
+    function limpiarForm() {
+      $('form').reset();
+      $('fila').value = '';
+      $('fecha').value = hoyISO();
+      $('tituloForm').textContent = 'Nuevo movimiento';
+      $('btnGuardar').textContent = 'Guardar';
+      $('btnCancelar').style.display = 'none';
+    }
+
+    $('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const mov = {
+        fecha: $('fecha').value,
+        categoria: $('categoria').value,
+        descripcion: $('descripcion').value,
+        tipo: document.querySelector('input[name="tipo"]:checked').value,
+        monto: $('monto').value
+      };
+      const fila = $('fila').value;
+      const btn = $('btnGuardar');
+      btn.disabled = true;
+      try {
+        if (fila) await servidor('editarMovimiento', Number(fila), mov);
+        else await servidor('agregarMovimiento', mov);
+        toast(fila ? 'Movimiento actualizado ✔' : 'Movimiento guardado en Google Sheets ✔');
+        limpiarForm();
+        await cargar();
+      } catch (e) {
+        toast(e.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $('btnCancelar').addEventListener('click', limpiarForm);
+
+    function editar(fila) {
+      const m = DATOS.movimientos.find(x => x.fila === fila);
+      if (!m) return;
+      $('fila').value = m.fila;
+      $('fecha').value = m.fecha;
+      if (![...$('categoria').options].some(o => o.value === m.categoria)) {
+        $('categoria').insertAdjacentHTML('beforeend', `<option>${esc(m.categoria)}</option>`);
+      }
+      $('categoria').value = m.categoria;
+      $('descripcion').value = m.descripcion;
+      $('monto').value = m.monto;
+      document.querySelector(`input[name="tipo"][value="${m.tipo}"]`).checked = true;
+      $('tituloForm').textContent = `Editando movimiento (fila ${m.fila})`;
+      $('btnGuardar').textContent = 'Guardar cambios';
+      $('btnCancelar').style.display = '';
+      document.querySelector('nav button[data-tab="registro"]').click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function eliminar(fila) {
+      const m = DATOS.movimientos.find(x => x.fila === fila);
+      if (!m || !confirm(`¿Eliminar "${m.descripcion || m.categoria}" por ${fmt.format(m.monto)}?`)) return;
+      cargando(true);
+      try {
+        await servidor('eliminarMovimiento', fila);
+        toast('Movimiento eliminado');
+        await cargar();
+      } catch (e) {
+        toast(e.message, true);
+        cargando(false);
+      }
+    }
+
+    $('formSaldo').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      cargando(true);
+      try {
+        await servidor('guardarSaldoInicial', $('saldoInicial').value || 0);
+        toast('Saldo inicial actualizado ✔');
+        await cargar();
+      } catch (e) {
+        toast(e.message, true);
+        cargando(false);
+      }
+    });
+
+    limpiarForm();
+    cargar();
+  </script>
+</body>
+</html>
