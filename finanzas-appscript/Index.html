@@ -155,7 +155,7 @@
       font-weight: 600; z-index: 9;
     }
     #cargandoCaja { text-align: center; max-width: 520px; padding: 16px; }
-    #cargandoError { color: var(--gasto); font-weight: 400; margin: 12px 0; white-space: pre-line; }
+    #cargandoError { color: var(--gasto); font-weight: 400; margin: 12px 0; }
     #cargandoError:empty { display: none; }
   </style>
 </head>
@@ -294,7 +294,8 @@
     // Si algo falla en el JavaScript, mostrarlo en vez de quedarse cargando para siempre.
     window.addEventListener('error', ev => {
       const caja = document.getElementById('cargandoError');
-      if (caja) caja.textContent = 'Error en la página: ' + (ev.message || ev.error || 'desconocido');
+      if (caja) caja.textContent = 'Error en la página: ' + (ev.message || ev.error || 'desconocido') +
+        (ev.lineno ? ' (línea ' + ev.lineno + ', columna ' + ev.colno + ')' : '');
       const btn = document.getElementById('btnReintentar');
       if (btn) btn.style.display = '';
     });
@@ -361,11 +362,11 @@
         cargando(false);
       } catch (e) {
         $('cargandoTexto').textContent = 'No se pudieron cargar los datos';
-        $('cargandoError').textContent = e.message +
-          '\n\nPosibles causas:' +
-          '\n• Tienes varias cuentas de Google abiertas: abre la página en una ventana de incógnito con una sola cuenta.' +
-          '\n• Falta autorizar permisos: en el editor ejecuta la función probarDatos.' +
-          '\n• Revisa el menú "Ejecuciones" del editor de Apps Script para ver el error.';
+        $('cargandoError').innerHTML = esc(e.message) +
+          '<p>Posibles causas:</p><ul style="text-align:left">' +
+          '<li>Tienes varias cuentas de Google abiertas: abre la página en una ventana de incógnito con una sola cuenta.</li>' +
+          '<li>Falta autorizar permisos: en el editor ejecuta la función probarDatos.</li>' +
+          '<li>Revisa el menú "Ejecuciones" del editor de Apps Script para ver el error.</li></ul>';
         $('btnReintentar').style.display = '';
       }
     }
@@ -423,8 +424,8 @@
           <td><span class="pill ${esc(m.tipo)}">${esc(m.tipo)}</span></td>
           <td class="num ${m.tipo === 'Ingreso' ? 'verde' : 'rojo'}">${fmt.format(m.monto)}</td>
           ${conAcciones ? `<td class="num">
-            <button class="btn-mini" title="Editar" onclick="editar(${m.fila})">✏️</button>
-            <button class="btn-mini" title="Eliminar" onclick="eliminar(${m.fila})">🗑️</button>
+            <button class="btn-mini" title="Editar" onclick="editar(${m.fila})">&#9999;&#65039;</button>
+            <button class="btn-mini" title="Eliminar" onclick="eliminar(${m.fila})">&#128465;&#65039;</button>
           </td>` : ''}
         </tr>`).join('');
     }
@@ -482,7 +483,7 @@
           <td class="num rojo">${fmt.format(r.gastos)}</td>
           <td class="num ${r.ahorro >= 0 ? 'morado' : 'rojo'}">${fmt.format(r.ahorro)}</td>
           <td class="num"><strong>${fmt.format(r.acumulado)}</strong></td>
-          <td class="num">${r.variacion === null ? '—' : pct.format(r.variacion)}</td>
+          <td class="num">${r.variacion === null ? '&mdash;' : pct.format(r.variacion)}</td>
         </tr>`).join('');
       $('tablaAcumulado').innerHTML = `
         <thead><tr><th>Mes</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Ahorro del mes</th><th class="num">Acumulado total</th><th class="num">Variación vs mes anterior</th></tr></thead>
@@ -575,7 +576,7 @@
       try {
         if (fila) await servidor('editarMovimiento', Number(fila), mov);
         else await servidor('agregarMovimiento', mov);
-        toast(fila ? 'Movimiento actualizado ✔' : 'Movimiento guardado en Google Sheets ✔');
+        toast(fila ? 'Movimiento actualizado' : 'Movimiento guardado en Google Sheets');
         limpiarForm();
         await cargar();
       } catch (e) {
@@ -625,7 +626,7 @@
       cargando(true);
       try {
         await servidor('guardarSaldoInicial', $('saldoInicial').value || 0);
-        toast('Saldo inicial actualizado ✔');
+        toast('Saldo inicial actualizado');
         await cargar();
       } catch (e) {
         toast(e.message, true);
