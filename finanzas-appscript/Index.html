@@ -150,10 +150,13 @@
     }
     #toast.error { background: var(--gasto); }
     #cargando {
-      position: fixed; inset: 0; background: rgba(255,255,255,.7);
+      position: fixed; inset: 0; background: rgba(255,255,255,.94);
       display: flex; align-items: center; justify-content: center;
       font-weight: 600; z-index: 9;
     }
+    #cargandoCaja { text-align: center; max-width: 520px; padding: 16px; }
+    #cargandoError { color: var(--gasto); font-weight: 400; margin: 12px 0; white-space: pre-line; }
+    #cargandoError:empty { display: none; }
   </style>
 </head>
 <body>
@@ -280,7 +283,22 @@
   </main>
 
   <div id="toast"></div>
-  <div id="cargando">Cargando datos…</div>
+  <div id="cargando">
+    <div id="cargandoCaja">
+      <div id="cargandoTexto">Cargando datos…</div>
+      <div id="cargandoError"></div>
+      <button class="btn" id="btnReintentar" type="button" style="display:none" onclick="location.reload()">Reintentar</button>
+    </div>
+  </div>
+  <script>
+    // Si algo falla en el JavaScript, mostrarlo en vez de quedarse cargando para siempre.
+    window.addEventListener('error', ev => {
+      const caja = document.getElementById('cargandoError');
+      if (caja) caja.textContent = 'Error en la página: ' + (ev.message || ev.error || 'desconocido');
+      const btn = document.getElementById('btnReintentar');
+      if (btn) btn.style.display = '';
+    });
+  </script>
 
   <script>
     const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -314,12 +332,14 @@
     }
     function cargando(si) { $('cargando').style.display = si ? 'flex' : 'none'; }
 
-    /** Promesa sobre google.script.run */
+    /** Promesa sobre google.script.run (con tiempo límite para no quedarse cargando). */
     function servidor(fn, ...args) {
       return new Promise((resolve, reject) => {
+        const limite = setTimeout(() => reject(new Error(
+          'El servidor no respondió a "' + fn + '" en 60 segundos.')), 60000);
         google.script.run
-          .withSuccessHandler(resolve)
-          .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))[fn](...args);
+          .withSuccessHandler(r => { clearTimeout(limite); resolve(r); })
+          .withFailureHandler(err => { clearTimeout(limite); reject(err && err.message ? err : new Error(String(err))); })[fn](...args);
       });
     }
 
@@ -334,12 +354,19 @@
     async function cargar() {
       cargando(true);
       try {
-        DATOS = await servidor('obtenerDatos');
+        const datos = await servidor('obtenerDatos');
+        if (!datos) throw new Error('El servidor devolvió datos vacíos.');
+        DATOS = datos;
         pintarTodo();
-      } catch (e) {
-        toast('Error cargando datos: ' + e.message, true);
-      } finally {
         cargando(false);
+      } catch (e) {
+        $('cargandoTexto').textContent = 'No se pudieron cargar los datos';
+        $('cargandoError').textContent = e.message +
+          '\n\nPosibles causas:' +
+          '\n• Tienes varias cuentas de Google abiertas: abre la página en una ventana de incógnito con una sola cuenta.' +
+          '\n• Falta autorizar permisos: en el editor ejecuta la función probarDatos.' +
+          '\n• Revisa el menú "Ejecuciones" del editor de Apps Script para ver el error.';
+        $('btnReintentar').style.display = '';
       }
     }
 
@@ -630,8 +657,7 @@
     }
 
     limpiarForm();
-    cargarLogo();
-    cargar();
+    cargar().then(cargarLogo);
   </script>
 </body>
 </html>

@@ -227,11 +227,16 @@ function obtenerLogo() {
   if (enCache) return { id: LOGO_ID, url: enCache };
   try {
     const archivo = DriveApp.getFileById(LOGO_ID);
-    let blob = archivo.getBlob();
-    if (!/^image\//.test(blob.getContentType())) {
-      // Si no es imagen (p. ej. PDF), intenta con la miniatura que genera Drive.
-      blob = archivo.getThumbnail();
-      if (!blob) throw new Error('El archivo "' + archivo.getName() + '" no es una imagen (' + archivo.getMimeType() + ').');
+    const esImagen = /^image\//.test(archivo.getMimeType());
+    let blob = null;
+    // Imágenes pesadas (> 300 KB) o archivos que no son imagen: usar la miniatura
+    // que genera Drive, que es liviana y carga rápido.
+    if (!esImagen || archivo.getSize() > 300000) {
+      try { blob = archivo.getThumbnail(); } catch (err) { blob = null; }
+    }
+    if (!blob) {
+      if (!esImagen) throw new Error('El archivo "' + archivo.getName() + '" no es una imagen (' + archivo.getMimeType() + ').');
+      blob = archivo.getBlob();
     }
     const url = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
     if (url.length < 100000) cache.put('logo_' + LOGO_ID, url, 21600); // máx. 100 KB en caché, 6 h
@@ -240,6 +245,22 @@ function obtenerLogo() {
     console.warn('No se pudo cargar el logo: ' + e);
     return { id: LOGO_ID, error: String(e && e.message || e) };
   }
+}
+
+/**
+ * Ejecuta esta función desde el editor (▶ Ejecutar) para autorizar los permisos
+ * y comprobar que las 3 hojas se leen bien. Mira el "Registro de ejecución".
+ */
+function probarDatos() {
+  const t = Date.now();
+  const d = obtenerDatos();
+  console.log('Movimientos: ' + d.movimientos.length +
+    ' | Ingresos año: ' + d.totalAnio.ingresos +
+    ' | Gastos año: ' + d.totalAnio.gastos +
+    ' | Saldo final: ' + d.saldoFinal +
+    ' | Tiempo: ' + (Date.now() - t) + ' ms');
+  console.log('Tamaño de la respuesta: ' + JSON.stringify(d).length + ' caracteres');
+  probarLogo();
 }
 
 /**
